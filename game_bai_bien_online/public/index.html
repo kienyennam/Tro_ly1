@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Hẹn Hò Bên Biển Online</title>
+<style>
+  :root{--bg:#10283a;--panel:rgba(255,255,255,.95);--ink:#3b2b2b;--accent:#ff5d8f;--muted:#8a6f6f;--btn:#fff6ef;--btn-border:#ffc7d6}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;overflow:hidden;touch-action:manipulation}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:8px 16px}
+  canvas{display:block;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);cursor:pointer;touch-action:none}
+  #bar{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:960px}
+  .act{appearance:none;border:2px solid var(--btn-border);background:var(--btn);color:var(--ink);border-radius:999px;
+    padding:8px 13px;font-size:14.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:transform .08s}
+  .act:active{transform:scale(.95)} .act:hover{background:#ffe7ee}
+  .act.on{background:#ffd3e1;border-color:var(--accent)} .act.dim{opacity:.55}
+  .act .n{background:var(--accent);color:#fff;border-radius:999px;font-size:11px;padding:1px 6px}
+  .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(16,40,58,.55);
+    backdrop-filter:blur(3px);padding:16px;z-index:10}
+  .modal.hidden{display:none}
+  .card{background:var(--panel);border-radius:18px;max-width:440px;width:100%;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.35);max-height:92vh;overflow:auto}
+  .card h2{margin:0 0 8px;color:#d93d72;font-size:22px;text-align:center}
+  .card p{margin:6px 0;line-height:1.5;font-size:14.5px}
+  .card label{display:block;font-weight:600;font-size:14px;margin:10px 0 4px}
+  .card input[type=text],.card input[type=tel]{width:100%;padding:10px 12px;border:2px solid #f3cbd8;border-radius:12px;font-size:16px}
+  .card input:focus{outline:none;border-color:var(--accent)}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .pick{flex:1;border:2px solid #f3cbd8;border-radius:12px;padding:10px;text-align:center;cursor:pointer;font-weight:600;background:#fff}
+  .pick.sel{border-color:var(--accent);background:#ffe9f0}
+  .chk{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;margin-top:10px;line-height:1.45}
+  .chk input{margin-top:3px;width:18px;height:18px;flex:none}
+  .go{border:none;background:linear-gradient(90deg,#ff7aa2,#ff9a6b);color:#fff;font-size:16px;font-weight:700;border-radius:999px;
+    padding:11px 24px;cursor:pointer;box-shadow:0 6px 16px rgba(255,93,143,.35)}
+  .ghost{border:2px solid #f3cbd8;background:#fff;color:var(--ink);font-size:15px;font-weight:600;border-radius:999px;padding:9px 18px;cursor:pointer}
+  .btns{display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+  .err{color:#c62f2f;font-size:13.5px;min-height:18px;text-align:center;margin-top:8px}
+  .rules{font-size:12.5px;color:var(--muted);background:#fff4f7;border-radius:10px;padding:8px 10px;margin-top:10px;line-height:1.5}
+  .phr{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .phr button{border:2px solid #f3cbd8;background:#fff;border-radius:12px;padding:9px;font-size:14px;cursor:pointer;text-align:left}
+  .phr button:hover{background:#ffe9f0}
+  .contact{display:flex;justify-content:space-between;align-items:center;border:1px solid #f3cbd8;border-radius:12px;padding:8px 10px;margin:6px 0;gap:8px}
+  .contact a{color:#d93d72;font-weight:700;text-decoration:none;font-size:16px}
+  .small{font-size:12.5px;color:var(--muted)}
+  @media (max-width:600px){.act{padding:7px 10px;font-size:13px}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="bar">
+    <button class="act" data-a="say">💬 Nói</button>
+    <button class="act" data-a="heart">💗 Thả tim</button>
+    <button class="act" data-a="hand" id="bHand">🤝 <span>Cầm tay</span></button>
+    <button class="act" data-a="kiss" id="bKiss">😘 Hôn má</button>
+    <button class="act" data-a="phone" id="bPhone">📱 Trao số</button>
+    <button class="act" data-a="contacts">📒 Danh bạ <span class="n" id="nContacts" hidden>0</span></button>
+    <button class="act" data-a="safety">🛡️ Chặn / Báo cáo</button>
+  </div>
+</div>
+
+<!-- Màn vào phòng -->
+<div class="modal" id="mJoin">
+  <div class="card">
+    <h2>🏖️ Hẹn Hò Bên Biển Online</h2>
+    <p style="text-align:center">Gặp gỡ người chơi khác trên bãi biển, trò chuyện, thả tim, nắm tay, và trao số điện thoại khi cả hai cùng muốn.</p>
+    <label for="iName">Tên hiển thị</label>
+    <input id="iName" type="text" maxlength="16" placeholder="VD: Minh" autocomplete="off">
+    <label>Nhân vật</label>
+    <div class="row">
+      <div class="pick sel" data-av="boy">👦 Nam</div>
+      <div class="pick" data-av="girl">👧 Nữ</div>
+    </div>
+    <label for="iCode">Mã phòng (do người tổ chức cung cấp)</label>
+    <input id="iCode" type="text" maxlength="30" autocomplete="off">
+    <label class="chk"><input type="checkbox" id="iAdult"> <span>Tôi xác nhận <b>đã đủ 18 tuổi</b>, đồng ý cư xử lịch sự và hiểu rằng mọi hành động thân mật hay trao số điện thoại đều cần người kia đồng ý.</span></label>
+    <div class="rules">🔒 Số điện thoại chỉ được hỏi khi bạn chủ động trao số, chỉ gửi cho đúng người bạn đồng ý, và <b>không được lưu trên máy chủ</b>. Hãy cảnh giác với lời mời chuyển tiền hay đầu tư: đó thường là lừa đảo.</div>
+    <div class="err" id="joinErr"></div>
+    <div class="btns"><button class="go" id="bJoin">Vào bãi biển</button></div>
+  </div>
+</div>
+
+<!-- Hộp thoại dùng chung -->
+<div class="modal hidden" id="mBox"><div class="card" id="boxCard"></div></div>
+
+<script>
+(() => {
+'use strict';
+const W = 960, H = 540, HORIZON = 215, SAND_TOP = 345, FLOOR_MIN = 385, FLOOR_MAX = 515, NEAR = 110;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d'), bar = document.getElementById('bar');
+let scale = 1, dpr = 1;
+function resize(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  scale = Math.max(.2, Math.min((innerWidth - 32) / W, (innerHeight - bar.offsetHeight - 30) / H));
+  cv.style.width = W * scale + 'px'; cv.style.height = H * scale + 'px';
+  cv.width = Math.round(W * scale * dpr); cv.height = Math.round(H * scale * dpr);
+}
+addEventListener('resize', resize);
+
+// ---------- tiện ích ----------
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const dist = (a, b) => Math.hypot(a.x - b.x, (a.y - b.y) * 1.6);
+const depth = y => .85 + (y - FLOOR_MIN) / (FLOOR_MAX - FLOOR_MIN) * .25;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function hex(c){ const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function mix(a, b, t){ const A = hex(a), B = hex(b); return `rgb(${Math.round(lerp(A[0],B[0],t))},${Math.round(lerp(A[1],B[1],t))},${Math.round(lerp(A[2],B[2],t))})`; }
+function shade(c, f){ const A = hex(c); return `rgb(${A.map(v => Math.round(v * f)).join(',')})`; }
+function rrect(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function heartPath(x, y, s){ y -= s / 2; ctx.beginPath(); ctx.moveTo(x, y + s * .3);
+  ctx.bezierCurveTo(x, y, x - s * .5, y, x - s * .5, y + s * .3); ctx.bezierCurveTo(x - s * .5, y + s * .6, x, y + s * .8, x, y + s);
+  ctx.bezierCurveTo(x, y + s * .8, x + s * .5, y + s * .6, x + s * .5, y + s * .3); ctx.bezierCurveTo(x + s * .5, y, x, y, x, y + s * .3); ctx.closePath(); }
+function line(x1, y1, x2, y2){ ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+
+let AC = null;
+function beep(f, d = .12, type = 'sine', v = .07, delay = 0){
+  try{ if(!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); const t = AC.currentTime + delay;
+    const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + .02); }catch(e){}
+}
+const sfx = { heart(){ beep(880, .1); beep(1175, .14, 'sine', .06, .08); }, good(){ beep(660, .1); beep(880, .1, 'sine', .06, .09); beep(1320, .16, 'sine', .05, .18); },
+  bad(){ beep(240, .2, 'triangle', .08); }, ping(){ beep(1046, .12, 'triangle', .06); beep(1318, .14, 'triangle', .05, .1); }, kiss(){ beep(1000, .06, 'square', .035); beep(1500, .08, 'square', .03, .07); } };
+
+// ---------- trạng thái ----------
+let ws = null, myId = null, phrases = [], gate = {hand: 15, phone: 25, kiss: 40};
+let me = null;                 // nhân vật của mình
+const others = new Map();      // id -> người chơi khác
+const bonds = new Map();       // id -> điểm thân thiết với mình
+const contacts = [];           // số điện thoại đã nhận
+let parts = [], toastMsg = null, T = 0, keys = {}, sendT = 0, lastSent = '';
+let reqQueue = [], boxOpen = null;
+const sandDots = Array.from({length: 160}, () => ({x: rand(0, W), y: rand(SAND_TOP + 10, H), r: rand(.6, 1.8)}));
+const clouds = Array.from({length: 5}, (_, i) => ({x: i * 220 + rand(0, 80), y: rand(40, 140), s: rand(.7, 1.3), v: rand(4, 10)}));
+const gulls = Array.from({length: 3}, () => ({x: rand(0, W), y: rand(60, 170), v: rand(25, 45), ph: rand(0, 6)}));
+
+const all = () => me ? [me, ...others.values()] : [...others.values()];
+const byId = id => id === myId ? me : others.get(id);
+function toast(text){ toastMsg = {text, t: 2.8}; }
+function say(p, text, life = 3){ if(p) p.bubble = {text, t: life, max: life}; }
+function hearts(x, y, n, opt = {}){
+  for(let i = 0; i < n; i++) parts.push({kind: 'heart', x: x + rand(-10, 10), y: y + rand(-6, 6), vx: (opt.vx || 0) + rand(-30, 30), vy: rand(-90, -40),
+    life: rand(1.2, 2), max: 2, size: rand(10, 20) * (opt.big || 1), color: pick(['#ff4f86', '#ff7aa2', '#ff3366', '#ffb3c7'])});
+}
+function floatText(text, x, y, color = '#ff4f86', big = false){ parts.push({kind: 'text', text, x, y, vx: 0, vy: -28, life: 1.5, max: 1.5, color, big}); }
+function headY(p){ return p.y - 95 * depth(p.y); }
+
+function target(){
+  if(!me) return null;
+  if(me.holding && others.get(me.holding)) return others.get(me.holding);
+  let best = null, bd = NEAR;
+  for(const p of others.values()){ const d = dist(me, p); if(d < bd){ bd = d; best = p; } }
+  return best;
+}
+
+// ---------- mạng ----------
+function sendMsg(m){ if(ws && ws.readyState === 1) ws.send(JSON.stringify(m)); }
+function newPlayer(p){ return Object.assign({walk: 0, moving: false, lean: 0, blush: 0, bubble: null, rx: p.x, ry: p.y}, p); }
+
+function connect(join){
+  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+  ws = new WebSocket(url);
+  ws.onopen = () => sendMsg(Object.assign({t: 'join'}, join));
+  ws.onerror = () => { document.getElementById('joinErr').textContent = 'Không kết nối được máy chủ.'; };
+  ws.onclose = () => {
+    if(!myId) return;
+    myId = null;
+    openBox(`<h2>Mất kết nối</h2><p style="text-align:center">Kết nối tới máy chủ đã bị ngắt. Số điện thoại trong Danh bạ sẽ mất khi tải lại trang, hãy lưu lại trước.</p>
+      <div class="btns"><button class="ghost" id="xContacts">📒 Xem danh bạ</button><button class="go" onclick="location.reload()">Vào lại</button></div>`);
+    document.getElementById('xContacts').onclick = showContacts;
+  };
+  ws.onmessage = ev => { let m; try{ m = JSON.parse(ev.data); }catch(e){ return; } handle(m); };
+}
+
+function handle(m){
+  switch(m.t){
+    case 'denied': document.getElementById('joinErr').textContent = m.reason; ws.close(); ws = null; break;
+    case 'welcome':
+      myId = m.id; phrases = m.phrases; gate = m.gate;
+      me = newPlayer(m.me);
+      m.players.forEach(p => others.set(p.id, newPlayer(p)));
+      document.getElementById('mJoin').classList.add('hidden');
+      say(me, 'Xin chào mọi người! 👋', 2.5); sendMsg({t: 'say', idx: 0});
+      toast(others.size ? `Có ${others.size} người đang ở bãi biển` : 'Bạn là người đầu tiên, hãy chờ bạn bè vào nhé!');
+      break;
+    case 'join': others.set(m.p.id, newPlayer(m.p)); floatText(m.p.name + ' vừa đến 🏖️', m.p.x, headY(m.p) - 10, '#2d7fb5'); break;
+    case 'leave': {
+      const p = others.get(m.id);
+      if(p){ others.delete(m.id); bonds.delete(m.id); if(me && me.holding === m.id) me.holding = null; }
+      reqQueue = reqQueue.filter(r => r.from !== m.id);
+      break;
+    }
+    case 'move': { const p = others.get(m.id); if(p){ p.x = m.x; p.y = m.y; p.dir = m.dir; p.mv = m.mv; p.lastMove = T; } break; }
+    case 'say': { const p = byId(m.from); if(p && p !== me) say(p, phrases[m.idx] || ''); break; }
+    case 'heart': {
+      const p = byId(m.from), q = m.to ? byId(m.to) : null; if(!p || p === me) break;
+      hearts(p.x, headY(p), 5, {vx: q ? Math.sign(q.x - p.x) * 60 : 0});
+      if(m.to === myId){ sfx.heart(); toast(`${p.name} thả tim cho bạn 💗`); }
+      break;
+    }
+    case 'bond': bonds.set(m.with, m.v); { const p = others.get(m.with); if(p) floatText('Thân thiết ' + m.v, p.x, headY(p) - 18); } break;
+    case 'req': reqQueue.push(m); sfx.ping(); nextReq(); break;
+    case 'reqGone': reqQueue = reqQueue.filter(r => r.reqId !== m.reqId); if(boxOpen === 'req:' + m.reqId) closeBox(); break;
+    case 'reqResult': {
+      const p = others.get(m.by), n = p ? p.name : 'Người kia';
+      const what = {hand: 'nắm tay', kiss: 'hôn má', phone: 'trao số'}[m.type];
+      if(m.ok){ if(m.type === 'hand') toast(`${n} đã đồng ý ${what} 💕`); }
+      else { sfx.bad(); toast(m.reason === 'timeout' ? `${n} chưa trả lời lời mời ${what}.` : `${n} đã từ chối ${what}. Tôn trọng nhau nhé 🙏`); }
+      break;
+    }
+    case 'hold': {
+      const a = byId(m.a), b = byId(m.b);
+      if(a){ a.holding = m.b; a.leader = true; } if(b){ b.holding = m.a; b.leader = false; }
+      if(a && b){ hearts((a.x + b.x) / 2, Math.min(a.y, b.y) - 50, 6); b.blush = Math.max(b.blush, .8); }
+      if(m.a === myId || m.b === myId) sfx.good();
+      break;
+    }
+    case 'unhold': {
+      [m.a, m.b].forEach(id => { const p = byId(id); if(p){ p.holding = null; p.leader = false; } });
+      if(m.a === myId || m.b === myId) toast('Đã buông tay');
+      break;
+    }
+    case 'kiss': {
+      const a = byId(m.a), b = byId(m.b); if(!a || !b) break;
+      a.kissAnim = {t: 0, to: m.b}; b.blush = 1.4;
+      setTimeout(() => { hearts(b.x, headY(b), 10, {big: 1.3}); floatText('chụt 💋', b.x, headY(b) - 25, '#e0245e', true); }, 450);
+      if(m.a === myId || m.b === myId) sfx.kiss();
+      break;
+    }
+    case 'phone': {
+      contacts.push({name: m.name, phone: m.phone});
+      updateContactBadge(); sfx.good();
+      const p = others.get(m.from); if(p) hearts(p.x, headY(p), 8);
+      openBox(`<h2>📱 Đã trao số!</h2><p style="text-align:center">Bạn và <b>${esc(m.name)}</b> đã trao số cho nhau.</p>
+        <div class="contact"><span>${esc(m.name)}</span><a href="tel:${esc(m.phone)}">${esc(m.phone)}</a></div>
+        <p class="small">Số này chỉ hiện trong phiên chơi hiện tại, hãy lưu vào danh bạ điện thoại. Đừng bao giờ chuyển tiền cho người mới quen qua mạng.</p>
+        <div class="btns"><button class="go" data-close>Tuyệt vời</button></div>`);
+      break;
+    }
+    case 'toast': toast(m.text); break;
+  }
+}
+
+// ---------- hộp thoại ----------
+const mBox = document.getElementById('mBox'), boxCard = document.getElementById('boxCard');
+function openBox(html, tag = 'box'){ boxCard.innerHTML = html; mBox.classList.remove('hidden'); boxOpen = tag;
+  boxCard.querySelectorAll('[data-close]').forEach(b => b.onclick = closeBox); }
+function closeBox(){ mBox.classList.add('hidden'); boxOpen = null; setTimeout(nextReq, 50); }
+mBox.addEventListener('click', e => { if(e.target === mBox && !String(boxOpen).startsWith('req:')) closeBox(); });
+
+let myPhone = ''; // chỉ giữ trong bộ nhớ của trang, không lưu vào trình duyệt
+function phoneOk(s){ return /^(0|\+84)(3|5|7|8|9)\d{8}$/.test(String(s).replace(/[\s.\-()]/g, '')); }
+
+function nextReq(){
+  if(boxOpen || !reqQueue.length) return;
+  const r = reqQueue.shift();
+  const p = others.get(r.from); if(!p) return nextReq();
+  const label = {hand: `muốn <b>nắm tay</b> bạn 🤝`, kiss: `muốn <b>hôn má</b> bạn 😘`, phone: `muốn <b>trao số điện thoại</b> với bạn 📱`}[r.type];
+  const phoneField = r.type === 'phone' ? `<label for="rPhone">Số điện thoại của bạn</label><input id="rPhone" type="tel" inputmode="tel" placeholder="VD: 0912345678" value="${esc(myPhone)}">
+     <p class="small">Nếu đồng ý, hai bạn sẽ thấy số của nhau. Số của bạn chỉ gửi cho ${esc(p.name)} và không được lưu trên máy chủ.</p>` : '';
+  openBox(`<h2>${esc(p.name)}</h2><p style="text-align:center">${label}</p>${phoneField}<div class="err" id="rErr"></div>
+    <div class="btns"><button class="ghost" id="rNo">Từ chối</button><button class="go" id="rYes">Đồng ý</button></div>
+    <p class="small" style="text-align:center">Bạn có quyền từ chối bất cứ lúc nào.</p>`, 'req:' + r.reqId);
+  document.getElementById('rNo').onclick = () => { sendMsg({t: 'resp', reqId: r.reqId, accept: false}); closeBox(); };
+  document.getElementById('rYes').onclick = () => {
+    const msg = {t: 'resp', reqId: r.reqId, accept: true};
+    if(r.type === 'phone'){ const v = document.getElementById('rPhone').value.trim(); if(!phoneOk(v)){ document.getElementById('rErr').textContent = 'Số điện thoại chưa hợp lệ.'; return; } myPhone = v; msg.phone = v; }
+    sendMsg(msg); closeBox();
+  };
+}
+
+function showPhrases(){
+  const tg = target();
+  openBox(`<h2>💬 Nói gì đây?</h2>${tg ? `<p style="text-align:center" class="small">Nói với ${esc(tg.name)}</p>` : ''}<div class="phr">${phrases.map((s, i) => `<button data-i="${i}">${esc(s)}</button>`).join('')}</div>
+    <div class="btns"><button class="ghost" data-close>Đóng</button></div>`);
+  boxCard.querySelectorAll('[data-i]').forEach(b => b.onclick = () => {
+    const i = Number(b.dataset.i), t2 = target(); say(me, phrases[i]); sendMsg({t: 'say', idx: i, to: t2 ? t2.id : undefined}); beep(620, .08, 'triangle', .05); closeBox();
+  });
+}
+
+function askPhone(tg){
+  openBox(`<h2>📱 Trao số với ${esc(tg.name)}</h2>
+    <label for="pPhone">Số điện thoại của bạn</label><input id="pPhone" type="tel" inputmode="tel" placeholder="VD: 0912345678" value="${esc(myPhone)}">
+    <p class="small">Số của bạn chỉ được gửi cho ${esc(tg.name)} <b>nếu người đó cũng đồng ý</b> và trao lại số của họ. Máy chủ không lưu số điện thoại.</p>
+    <div class="err" id="pErr"></div><div class="btns"><button class="ghost" data-close>Hủy</button><button class="go" id="pSend">Gửi lời mời</button></div>`);
+  document.getElementById('pSend').onclick = () => {
+    const v = document.getElementById('pPhone').value.trim();
+    if(!phoneOk(v)){ document.getElementById('pErr').textContent = 'Số điện thoại chưa hợp lệ (VD: 0912345678).'; return; }
+    myPhone = v; sendMsg({t: 'req', type: 'phone', to: tg.id, phone: v}); closeBox();
+  };
+}
+
+function showContacts(){
+  openBox(`<h2>📒 Danh bạ</h2>${contacts.length ? contacts.map(c => `<div class="contact"><span>${esc(c.name)}</span><a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></div>`).join('')
+    : '<p style="text-align:center">Chưa có số nào. Trò chuyện thêm và trao số khi cả hai cùng muốn nhé!</p>'}
+    <p class="small">Danh bạ chỉ tồn tại trong phiên chơi này, tải lại trang là mất. Hãy lưu vào điện thoại.</p><div class="btns"><button class="go" data-close>Đóng</button></div>`);
+}
+
+function showSafety(tg){
+  openBox(`<h2>🛡️ An toàn</h2><p style="text-align:center">Với <b>${esc(tg.name)}</b></p>
+    <div class="btns"><button class="ghost" id="sBlock">🚫 Chặn</button></div>
+    <label>Báo cáo vì:</label><div class="phr">${['Lời lẽ khiếm nhã', 'Quấy rối, làm phiền', 'Nghi lừa đảo', 'Có vẻ chưa đủ 18 tuổi'].map(r => `<button data-r="${r}">${r}</button>`).join('')}</div>
+    <div class="btns"><button class="go" data-close>Đóng</button></div>`);
+  document.getElementById('sBlock').onclick = () => { sendMsg({t: 'block', to: tg.id}); closeBox(); };
+  boxCard.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { sendMsg({t: 'report', to: tg.id, reason: b.dataset.r}); closeBox(); });
+}
+function updateContactBadge(){ const n = document.getElementById('nContacts'); n.hidden = !contacts.length; n.textContent = contacts.length; }
+
+// ---------- hành động ----------
+function act(a){
+  if(!me || !myId) return;
+  const tg = target();
+  if(a === 'contacts') return showContacts();
+  if(a === 'say') return showPhrases();
+  if(a === 'heart'){
+    const dir = tg ? Math.sign(tg.x - me.x) || me.dir : 0;
+    hearts(me.x + dir * 10, headY(me), 5, {vx: dir * 60}); sfx.heart();
+    sendMsg({t: 'heart', to: tg ? tg.id : undefined}); return;
+  }
+  if(a === 'hand' && me.holding){ sendMsg({t: 'release'}); return; }
+  if(!tg) return toast('Hãy lại gần một người chơi khác (vòng tròn hồng sẽ hiện dưới chân họ).');
+  if(a === 'safety') return showSafety(tg);
+  const b = bonds.get(tg.id) || 0;
+  if(a === 'hand'){ if(b < gate.hand) return toast(`Cần thân thiết ≥ ${gate.hand} để mời nắm tay (hiện ${b}).`); sendMsg({t: 'req', type: 'hand', to: tg.id}); }
+  if(a === 'kiss'){
+    if(b < gate.kiss) return toast(`Cần thân thiết ≥ ${gate.kiss} để mời hôn má (hiện ${b}).`);
+    if(me.holding !== tg.id) return toast('Hãy nắm tay nhau trước đã 🤝');
+    sendMsg({t: 'req', type: 'kiss', to: tg.id});
+  }
+  if(a === 'phone'){ if(b < gate.phone) return toast(`Cần thân thiết ≥ ${gate.phone} để trao số (hiện ${b}).`); askPhone(tg); }
+}
+bar.addEventListener('click', e => { const b = e.target.closest('.act'); if(b) act(b.dataset.a); });
+addEventListener('keydown', e => {
+  if(boxOpen || !myId) return;
+  keys[e.key.toLowerCase()] = true;
+  const map = {'1': 'say', '2': 'heart', '3': 'hand', '4': 'kiss', '5': 'phone', ' ': 'heart'};
+  if(map[e.key]){ e.preventDefault(); act(map[e.key]); }
+  if(e.key.startsWith('Arrow')) e.preventDefault();
+});
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+addEventListener('blur', () => { keys = {}; });
+cv.addEventListener('pointerdown', e => {
+  if(!me || boxOpen) return;
+  const r = cv.getBoundingClientRect();
+  me.tx = clamp((e.clientX - r.left) / r.width * W, 30, W - 30);
+  me.ty = clamp((e.clientY - r.top) / r.height * H, FLOOR_MIN, FLOOR_MAX);
+});
+
+// ---------- màn vào phòng ----------
+let avatar = 'boy';
+document.querySelectorAll('.pick').forEach(el => el.onclick = () => { document.querySelectorAll('.pick').forEach(x => x.classList.remove('sel')); el.classList.add('sel'); avatar = el.dataset.av; });
+const qsCode = new URLSearchParams(location.search).get('phong'); if(qsCode) document.getElementById('iCode').value = qsCode;
+document.getElementById('bJoin').onclick = () => {
+  const name = document.getElementById('iName').value.trim(), code = document.getElementById('iCode').value.trim(), adult = document.getElementById('iAdult').checked;
+  const err = document.getElementById('joinErr');
+  if(name.length < 2) return err.textContent = 'Tên cần từ 2 đến 16 ký tự.';
+  if(!code) return err.textContent = 'Vui lòng nhập mã phòng.';
+  if(!adult) return err.textContent = 'Bạn cần xác nhận đã đủ 18 tuổi.';
+  err.textContent = 'Đang kết nối...'; beep(523, .1);
+  connect({name, code, adult, avatar});
+};
+
+// ---------- cập nhật ----------
+function step(c, tx, ty, sp, dt){
+  const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy);
+  if(d < 3){ c.x = tx; c.y = ty; return true; }
+  const s = Math.min(d, sp * dt); c.x += dx / d * s; c.y += dy / d * s;
+  if(Math.abs(dx) > 2) c.dir = Math.sign(dx);
+  c.moving = true; return false;
+}
+function update(dt){
+  T += dt;
+  if(me){
+    me.moving = false;
+    const partner = me.holding ? others.get(me.holding) : null;
+    if(partner && !me.leader){ // được dắt tay: đi theo người dắt
+      const side = Math.sign(me.x - partner.x) || 1;
+      const tx = clamp(partner.x + side * 44 * depth(partner.y), 30, W - 30);
+      if(Math.hypot(tx - me.x, partner.y - me.y) > 2) step(me, tx, partner.y, Math.max(120, Math.hypot(tx - me.x, partner.y - me.y) * 8), dt);
+      me.dir = partner.mv ? partner.dir : -side; me.tx = null;
+    } else {
+      let dx = 0, dy = 0;
+      if(keys['arrowleft'] || keys['a']) dx--; if(keys['arrowright'] || keys['d']) dx++;
+      if(keys['arrowup'] || keys['w']) dy--; if(keys['arrowdown'] || keys['s']) dy++;
+      if(dx || dy){ me.tx = null; const l = Math.hypot(dx, dy); me.x += dx / l * 170 * dt; me.y += dy / l * 110 * dt; if(dx) me.dir = Math.sign(dx); me.moving = true; }
+      else if(me.tx != null && step(me, me.tx, me.ty, 170, dt)) me.tx = null;
+    }
+    me.x = clamp(me.x, 30, W - 30); me.y = clamp(me.y, FLOOR_MIN, FLOOR_MAX);
+    if(me.moving) me.walk += dt * 11;
+    sendT -= dt;
+    const sig = `${Math.round(me.x)},${Math.round(me.y)},${me.dir},${me.moving}`;
+    if(sendT <= 0 && sig !== lastSent){ sendT = .066; lastSent = sig; sendMsg({t: 'move', x: Math.round(me.x), y: Math.round(me.y), dir: me.dir, mv: me.moving}); }
+  }
+  for(const p of others.values()){
+    const d = Math.hypot(p.x - p.rx, p.y - p.ry);
+    p.moving = d > 1.5 || (p.mv && T - (p.lastMove || 0) < .2);
+    p.rx = lerp(p.rx, p.x, Math.min(1, dt * 12)); p.ry = lerp(p.ry, p.y, Math.min(1, dt * 12));
+    if(p.moving) p.walk += dt * 11;
+  }
+  for(const p of all()){
+    p.blush = Math.max(0, p.blush - dt * .25);
+    if(p.bubble){ p.bubble.t -= dt; if(p.bubble.t <= 0) p.bubble = null; }
+    if(p.kissAnim){ p.kissAnim.t += dt; const k = p.kissAnim.t / 1.3; p.lean = k < 1 ? Math.sin(k * Math.PI) : 0;
+      const q = byId(p.kissAnim.to); if(q) p.dir = Math.sign(q.x - p.x) || p.dir; if(k >= 1) p.kissAnim = null; }
+  }
+  for(let i = parts.length - 1; i >= 0; i--){ const q = parts[i]; q.life -= dt; q.x += q.vx * dt; q.y += q.vy * dt;
+    if(q.kind === 'heart'){ q.vx *= .97; q.x += Math.sin((T + i) * 4) * 12 * dt; } if(q.life <= 0) parts.splice(i, 1); }
+  if(toastMsg){ toastMsg.t -= dt; if(toastMsg.t <= 0) toastMsg = null; }
+  clouds.forEach(c => { c.x += c.v * dt; if(c.x > W + 120) c.x = -140; });
+  gulls.forEach(g => { g.x += g.v * dt; g.ph += dt * 6; if(g.x > W + 30){ g.x = -30; g.y = rand(60, 170); } });
+  updateButtons();
+}
+
+function updateButtons(){
+  const tg = target(), b = tg ? bonds.get(tg.id) || 0 : 0;
+  const bh = document.getElementById('bHand');
+  bh.querySelector('span').textContent = me && me.holding ? 'Buông tay' : 'Cầm tay';
+  bh.classList.toggle('on', !!(me && me.holding));
+  bh.classList.toggle('dim', !(me && me.holding) && (!tg || b < gate.hand));
+  document.getElementById('bKiss').classList.toggle('dim', !tg || b < gate.kiss || !(me && me.holding === tg.id));
+  document.getElementById('bPhone').classList.toggle('dim', !tg || b < gate.phone);
+}
+
+// ---------- vẽ ----------
+function drawBackground(k){
+  const sky = ctx.createLinearGradient(0, 0, 0, HORIZON);
+  sky.addColorStop(0, mix('#5fb4ec', '#4a3a86', k)); sky.addColorStop(.6, mix('#a6dcf7', '#ff8f70', k)); sky.addColorStop(1, mix('#dff4ff', '#ffd08a', k));
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, HORIZON + 1);
+  const sx = lerp(720, 620, k), sy = lerp(85, HORIZON - 18, k), sr = lerp(36, 46, k);
+  const glow = ctx.createRadialGradient(sx, sy, sr * .5, sx, sy, sr * 3.2);
+  glow.addColorStop(0, 'rgba(255,230,160,.5)'); glow.addColorStop(1, 'rgba(255,200,120,0)');
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sx, sy, sr * 3.2, 0, 7); ctx.fill();
+  ctx.fillStyle = mix('#fff3a6', '#ff7b45', k); ctx.beginPath(); ctx.arc(sx, sy, sr, 0, 7); ctx.fill();
+  clouds.forEach(c => { ctx.fillStyle = k > .5 ? 'rgba(255,205,195,.75)' : 'rgba(255,255,255,.85)'; const s = c.s; ctx.beginPath();
+    ctx.arc(c.x, c.y, 18 * s, 0, 7); ctx.arc(c.x + 22 * s, c.y - 8 * s, 22 * s, 0, 7); ctx.arc(c.x + 46 * s, c.y, 17 * s, 0, 7); ctx.arc(c.x + 24 * s, c.y + 6 * s, 18 * s, 0, 7); ctx.fill(); });
+  ctx.strokeStyle = k > .6 ? '#3a2a40' : '#4a5568'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  gulls.forEach(g => { const f = Math.sin(g.ph) * 4; ctx.beginPath(); ctx.moveTo(g.x - 10, g.y - f); ctx.quadraticCurveTo(g.x - 5, g.y - 6, g.x, g.y); ctx.quadraticCurveTo(g.x + 5, g.y - 6, g.x + 10, g.y - f); ctx.stroke(); });
+  const sea = ctx.createLinearGradient(0, HORIZON, 0, SAND_TOP);
+  sea.addColorStop(0, mix('#2a86c7', '#5a3f7d', k)); sea.addColorStop(1, mix('#48c6d8', '#e08a7a', k));
+  ctx.fillStyle = sea; ctx.fillRect(0, HORIZON, W, SAND_TOP - HORIZON + 20);
+  ctx.fillStyle = mix('#3d7a8f', '#4a3560', k); ctx.beginPath(); ctx.moveTo(60, HORIZON); ctx.quadraticCurveTo(140, HORIZON - 28, 230, HORIZON); ctx.fill();
+  ctx.fillStyle = `rgba(255,230,150,${.25 + k * .35})`;
+  for(let i = 0; i < 9; i++){ const w = (40 - i * 2) * (1 + Math.sin(T * 2 + i) * .25) * (1 + k * .5); ctx.fillRect(sx - w / 2, HORIZON + 6 + i * 13, w, 3); }
+  const bx = (T * 8) % (W + 200) - 100, by = HORIZON + 16;
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(bx, by - 26); ctx.lineTo(bx, by - 2); ctx.lineTo(bx + 16, by - 4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#7a4b2a'; ctx.fillRect(bx - 12, by - 2, 30, 5);
+  ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 2;
+  for(let r = 0; r < 4; r++){ const yy = HORIZON + 30 + r * 26; ctx.beginPath();
+    for(let x = 0; x <= W; x += 16){ const y = yy + Math.sin(x * .03 + T * 1.6 + r) * 3; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.globalAlpha = .35 + r * .12; ctx.stroke(); ctx.globalAlpha = 1; }
+  const ebb = Math.sin(T * .9) * 8;
+  const sand = ctx.createLinearGradient(0, SAND_TOP, 0, H);
+  sand.addColorStop(0, mix('#f3d9a0', '#e9b98a', k)); sand.addColorStop(1, mix('#e6c07f', '#c9926c', k));
+  ctx.fillStyle = sand; ctx.beginPath(); ctx.moveTo(0, H);
+  for(let x = 0; x <= W; x += 20) ctx.lineTo(x, SAND_TOP + ebb + Math.sin(x * .02 + T) * 5);
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 4; ctx.beginPath();
+  for(let x = 0; x <= W; x += 20){ const y = SAND_TOP + ebb + Math.sin(x * .02 + T) * 5; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
+  ctx.fillStyle = 'rgba(160,120,70,.25)'; sandDots.forEach(d => { ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7); ctx.fill(); });
+}
+function drawPalm(x, y, k){
+  ctx.save(); ctx.translate(x, y);
+  ctx.strokeStyle = mix('#8a5a34', '#4a2e2a', k); ctx.lineWidth = 14; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-20, -90, 18, -190); ctx.stroke();
+  ctx.translate(18, -190); ctx.rotate(Math.sin(T * 1.2) * .05); ctx.fillStyle = mix('#2f9e5b', '#2d4a3a', k);
+  for(let i = 0; i < 7; i++){ ctx.save(); ctx.rotate(-Math.PI + i * Math.PI / 6 + Math.sin(T * 1.5 + i) * .04);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(45, -22, 90, 12); ctx.quadraticCurveTo(45, -4, 0, 0); ctx.fill(); ctx.restore(); }
+  ctx.fillStyle = '#6b4226'; ctx.beginPath(); ctx.arc(-4, 6, 6, 0, 7); ctx.arc(6, 8, 6, 0, 7); ctx.fill(); ctx.restore();
+}
+function drawUmbrella(x, y, k){
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = mix('#ff9fb8', '#d9708c', k); rrect(-50, -8, 100, 34, 4); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.6)'; for(let i = 0; i < 4; i++) ctx.fillRect(-44 + i * 25, -8, 8, 34);
+  ctx.strokeStyle = '#7a6a5a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(25, 20); ctx.lineTo(35, -110); ctx.stroke();
+  ctx.translate(35, -110); ctx.rotate(.08);
+  const cols = ['#ff6b6b', '#fff', '#ffd166', '#fff', '#4dabf7', '#fff'];
+  for(let i = 0; i < 6; i++){ ctx.fillStyle = cols[i]; ctx.beginPath(); ctx.moveTo(0, -6); const a0 = Math.PI + i * Math.PI / 6, a1 = a0 + Math.PI / 6;
+    ctx.lineTo(Math.cos(a0) * 70, Math.sin(a0) * 30 + 14); ctx.lineTo(Math.cos(a1) * 70, Math.sin(a1) * 30 + 14); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+
+function drawPerson(c, o){
+  const s = depth(c.y), d = c.dir || 1;
+  ctx.save(); ctx.translate(c.x, c.y); ctx.scale(s, s);
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(0, 0, 20, 6, 0, 0, 7); ctx.fill();
+  const sw = c.moving ? Math.sin(c.walk) * 9 : 0, bob = c.moving ? -Math.abs(Math.sin(c.walk)) * 2 : 0;
+  ctx.translate(0, bob); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = o.skin; ctx.lineWidth = 6; line(-5, -32, -5 + sw, -3); line(5, -32, 5 - sw, -3);
+  ctx.strokeStyle = o.sandal; ctx.lineWidth = 4; line(-5 + sw - 3, -2, -5 + sw + 4, -2); line(5 - sw - 3, -2, 5 - sw + 4, -2);
+  ctx.save(); ctx.translate(0, -32); ctx.rotate(d * (c.lean || 0) * .32); ctx.translate(0, 32);
+  if(o.female){
+    ctx.fillStyle = o.top; ctx.beginPath(); ctx.moveTo(-9, -62); ctx.lineTo(9, -62); ctx.lineTo(17, -26); ctx.lineTo(-17, -26); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; for(let i = 0; i < 4; i++){ ctx.beginPath(); ctx.arc(-8 + i * 6, -36 - (i % 2) * 10, 2.2, 0, 7); ctx.fill(); }
+    ctx.fillStyle = o.bottom; ctx.fillRect(-10, -64, 20, 6);
+  } else {
+    ctx.fillStyle = o.bottom; rrect(-11, -40, 22, 13, 3); ctx.fill();
+    ctx.fillStyle = o.top; rrect(-12, -64, 24, 28, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.7)'; [[-6, -56], [5, -50], [-3, -44], [7, -60]].forEach(([a, b]) => { ctx.beginPath(); ctx.arc(a, b, 2.3, 0, 7); ctx.fill(); });
+  }
+  ctx.strokeStyle = o.skin; ctx.lineWidth = 5.5;
+  const hs = o.hand ? Math.sign(o.hand.x) || d : 0;
+  [-1, 1].forEach(side => { const shx = side * 10, shy = -58;
+    if(o.hand && side === hs){ const hx = clamp(o.hand.x, -40, 40), hy = o.hand.y;
+      ctx.beginPath(); ctx.moveTo(shx, shy); ctx.quadraticCurveTo(shx + side * 6, -44, hx, hy); ctx.stroke();
+      ctx.fillStyle = o.skin; ctx.beginPath(); ctx.arc(hx, hy, 3.6, 0, 7); ctx.fill(); }
+    else line(shx, shy, side * 13 + (c.moving ? -Math.sin(c.walk) * side * 6 : 0), -36); });
+  const hx = d * 2, hy = -78;
+  if(o.female){ ctx.fillStyle = o.hair; ctx.beginPath(); ctx.ellipse(hx - d * 3, hy + 10, 15, 22, 0, 0, 7); ctx.fill(); }
+  ctx.fillStyle = o.skin; ctx.beginPath(); ctx.arc(hx, hy, 13, 0, 7); ctx.fill();
+  ctx.fillStyle = o.hair;
+  if(o.female){
+    ctx.beginPath(); ctx.arc(hx, hy - 2, 14, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(hx - 13, hy - 4); ctx.quadraticCurveTo(hx + d * 2, hy - 2, hx + 13, hy - 6); ctx.lineTo(hx + 12, hy - 12); ctx.lineTo(hx - 12, hy - 12); ctx.fill();
+    ctx.fillStyle = '#ff5d8f'; for(let i = 0; i < 5; i++){ const a = i * Math.PI * .4; ctx.beginPath(); ctx.arc(hx - d * 10 + Math.cos(a) * 3.5, hy - 10 + Math.sin(a) * 3.5, 2.6, 0, 7); ctx.fill(); }
+    ctx.fillStyle = '#ffe066'; ctx.beginPath(); ctx.arc(hx - d * 10, hy - 10, 1.8, 0, 7); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(hx, hy - 3, 13.5, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(hx - 13, hy - 5); ctx.lineTo(hx + d * 6, hy - 8); ctx.lineTo(hx + 13, hy - 4); ctx.lineTo(hx + 12, hy - 12); ctx.lineTo(hx - 12, hy - 12); ctx.fill();
+  }
+  const ex = hx + d * 3, happy = (c.blush || 0) > .8, blink = (T + (c.x % 3)) % 3.4 < .12;
+  ctx.strokeStyle = '#2b1d1d'; ctx.fillStyle = '#2b1d1d'; ctx.lineWidth = 1.8;
+  [-4.5, 4.5].forEach(o2 => { if(happy){ ctx.beginPath(); ctx.arc(ex + o2, hy + 1, 2.4, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+    else if(blink) line(ex + o2 - 2, hy, ex + o2 + 2, hy); else { ctx.beginPath(); ctx.arc(ex + o2, hy, 1.9, 0, 7); ctx.fill(); } });
+  ctx.beginPath(); ctx.arc(ex, hy + 4, 3.6, Math.PI * .15, Math.PI * .85); ctx.stroke();
+  const bl = clamp((c.blush || 0) * .55 + (o.female ? .2 : 0), 0, .8);
+  if(bl > 0){ ctx.fillStyle = `rgba(255,105,140,${bl})`; ctx.beginPath(); ctx.arc(ex - 7.5, hy + 4, 2.8, 0, 7); ctx.arc(ex + 7.5, hy + 4, 2.8, 0, 7); ctx.fill(); }
+  ctx.restore(); ctx.restore();
+}
+
+function styleOf(p){
+  return p.avatar === 'girl'
+    ? {female: true, skin: '#f7d2b2', top: p.color, bottom: shade(p.color, .8), hair: '#3a2219', sandal: '#c2547a'}
+    : {female: false, skin: '#f1c79e', top: p.color, bottom: '#2f4858', hair: '#2b1d16', sandal: '#5a3d2b'};
+}
+const FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+function drawTags(view){ // nhãn tên dưới chân, tự giãn ra nếu đè nhau
+  ctx.font = `700 12.5px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tags = view.map(v => ({v, w: ctx.measureText(v.name).width + 14, x: v.x, y: v.y + 16})).sort((a, b) => a.x - b.x);
+  for(let i = 1; i < tags.length; i++) for(let j = 0; j < i; j++){
+    const a = tags[j], b = tags[i];
+    if(Math.abs(a.y - b.y) < 19){ const ov = (a.x + a.w / 2 + 4) - (b.x - b.w / 2); if(ov > 0){ a.x -= ov / 2; b.x += ov / 2; } }
+  }
+  tags.forEach(t => {
+    const x = clamp(t.x, t.w / 2 + 4, W - t.w / 2 - 4);
+    ctx.fillStyle = t.v.id === myId ? 'rgba(255,93,143,.9)' : 'rgba(40,30,40,.6)'; rrect(x - t.w / 2, t.y - 9, t.w, 18, 9); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(t.v.name, x, t.y + 1);
+  });
+}
+function drawBubble(p, lift){
+  const b = p.bubble, s = depth(p.y), a = Math.min(1, b.t * 3, (b.max - b.t) * 6 + .2);
+  ctx.save(); ctx.globalAlpha = a; ctx.font = `600 14.5px ${FONT}`;
+  const w = Math.min(320, ctx.measureText(b.text).width + 22), h = 30, x = clamp(p.x - w / 2, 8, W - w - 8), y = p.y - 104 * s - h - lift;
+  ctx.fillStyle = 'rgba(255,255,255,.96)'; ctx.strokeStyle = 'rgba(255,93,143,.6)'; ctx.lineWidth = 1.5; rrect(x, y, w, h, 12); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p.x - 6, y + h - 1); ctx.lineTo(p.x, y + h + 7); ctx.lineTo(p.x + 6, y + h - 1); ctx.closePath(); ctx.fillStyle = 'rgba(255,255,255,.96)'; ctx.fill();
+  ctx.fillStyle = '#3b2b2b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.text, x + w / 2, y + h / 2 + 1, w - 14);
+  ctx.restore();
+}
+function drawHUD(){
+  ctx.save(); ctx.textBaseline = 'middle';
+  const tg = target();
+  ctx.fillStyle = 'rgba(255,255,255,.86)'; rrect(14, 12, 286, 62, 14); ctx.fill();
+  ctx.font = `700 14.5px ${FONT}`; ctx.textAlign = 'left'; ctx.fillStyle = '#d93d72';
+  if(tg){
+    const b = bonds.get(tg.id) || 0;
+    ctx.fillText('💗 Thân thiết với ' + tg.name, 26, 30, 200);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#5a2a3a'; ctx.fillText(b + '/100', 288, 30);
+    ctx.fillStyle = '#ffe3ec'; rrect(26, 46, 262, 14, 7); ctx.fill();
+    if(b > 0){ const gr = ctx.createLinearGradient(26, 0, 288, 0); gr.addColorStop(0, '#ff9ab8'); gr.addColorStop(1, '#ff3d7f'); ctx.fillStyle = gr; rrect(26, 46, Math.max(14, 262 * b / 100), 14, 7); ctx.fill(); }
+    ctx.font = `600 10px ${FONT}`; ctx.textAlign = 'center';
+    [[gate.hand, '🤝'], [gate.phone, '📱'], [gate.kiss, '😘']].forEach(([v, ic]) => { const x = 26 + 262 * v / 100; ctx.fillStyle = 'rgba(217,61,114,.6)'; ctx.fillRect(x - 1, 44, 2, 18); ctx.fillText(ic, x, 68); });
+  } else {
+    ctx.fillText('👥 ' + (others.size + (me ? 1 : 0)) + ' người đang ở bãi biển', 26, 30);
+    ctx.font = `500 13px ${FONT}`; ctx.fillStyle = '#6b5555'; ctx.fillText('Đi lại gần ai đó để bắt đầu làm quen', 26, 54);
+  }
+  if(toastMsg){
+    ctx.globalAlpha = Math.min(1, toastMsg.t * 3); ctx.font = `700 15px ${FONT}`; ctx.textAlign = 'center';
+    const tw = Math.min(W - 40, ctx.measureText(toastMsg.text).width + 32);
+    ctx.fillStyle = 'rgba(59,43,43,.85)'; rrect(W / 2 - tw / 2, H - 52, tw, 36, 18); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(toastMsg.text, W / 2, H - 33, tw - 20);
+  }
+  ctx.restore();
+}
+
+function draw(){
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+  const k = (Math.sin(T / 60 * Math.PI * 2 / 6 - Math.PI / 2) + 1) / 2 * .85; // chu kỳ ngày → hoàng hôn ~6 phút
+  drawBackground(k); drawPalm(78, 420, k); drawUmbrella(830, 405, k);
+  // vẽ người khác ở vị trí nội suy
+  const view = all().map(p => p === me ? p : Object.assign(Object.create(p), {x: p.rx, y: p.ry}));
+  const pos = new Map(view.map(v => [v.id, v]));
+  const tg = target();
+  if(tg){ const v = pos.get(tg.id); if(v){ const s = depth(v.y); ctx.strokeStyle = 'rgba(255,93,143,.85)'; ctx.lineWidth = 3; ctx.setLineDash([6, 5]); ctx.lineDashOffset = -T * 20;
+    ctx.beginPath(); ctx.ellipse(v.x, v.y, 28 * s, 9 * s, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); } }
+  view.sort((a, b) => a.y - b.y).forEach(v => {
+    const o = styleOf(v);
+    const q = v.holding ? pos.get(v.holding) : null;
+    if(q){ const mx = (v.x + q.x) / 2, hy = Math.min(v.y, q.y) - 38 * depth((v.y + q.y) / 2); o.hand = {x: (mx - v.x) / depth(v.y), y: (hy - v.y) / depth(v.y)}; }
+    drawPerson(v, o);
+  });
+  drawTags(view);
+  parts.forEach(q => { ctx.globalAlpha = clamp(q.life / q.max * 1.5, 0, 1);
+    if(q.kind === 'heart'){ ctx.fillStyle = q.color; heartPath(q.x, q.y, q.size); ctx.fill(); }
+    else { ctx.font = `800 ${q.big ? 22 : 14}px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.strokeText(q.text, q.x, q.y); ctx.fillStyle = q.color; ctx.fillText(q.text, q.x, q.y); }
+    ctx.globalAlpha = 1; });
+  // bong bóng thoại: đẩy lên nếu đè nhau
+  const withB = view.filter(v => v.bubble).sort((a, b) => a.x - b.x); const placed = [];
+  withB.forEach(v => { let lift = 0; placed.forEach(p => { if(Math.abs(p.x - v.x) < 200 && Math.abs(p.lift - lift) < 34) lift = p.lift + 36; }); placed.push({x: v.x, lift}); drawBubble(v, lift); });
+  drawHUD();
+}
+
+let last = performance.now();
+function frame(now){ const dt = Math.min(.05, (now - last) / 1000); last = now; update(dt); draw(); requestAnimationFrame(frame); }
+resize(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
