@@ -1,0 +1,16 @@
+{
+  "name": "hen-ho-ben-bien-online",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Game hẹn hò nhiều người chơi trên bãi biển – bản thử nghiệm kín",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
