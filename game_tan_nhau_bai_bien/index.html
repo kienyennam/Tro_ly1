@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Hẹn Hò Bên Biển</title>
+<style>
+  :root{
+    --bg:#10283a; --panel:rgba(255,255,255,.92); --ink:#3b2b2b; --accent:#ff5d8f;
+    --btn:#fff6ef; --btn-border:#ffc7d6; --muted:#8a6f6f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:8px 16px}
+  canvas{display:block;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);cursor:pointer;touch-action:none}
+  #bar{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:960px}
+  .act{appearance:none;border:2px solid var(--btn-border);background:var(--btn);color:var(--ink);
+    border-radius:999px;padding:8px 14px;font-size:15px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;gap:6px;transition:transform .08s, background .2s}
+  .act:active{transform:scale(.95)}
+  .act:hover{background:#ffe7ee}
+  .act small{font-weight:500;color:var(--muted);font-size:12px}
+  .act kbd{font:600 11px/1 ui-monospace,monospace;background:#ffe0ea;border-radius:5px;padding:3px 5px;color:#b13a63}
+  .act.locked{opacity:.65}
+  .act.on{background:#ffd3e1;border-color:var(--accent)}
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(16,40,58,.55);backdrop-filter:blur(3px);padding:16px}
+  #overlay.hidden{display:none}
+  .card{background:var(--panel);border-radius:18px;max-width:520px;width:100%;padding:22px 22px 18px;
+    box-shadow:0 20px 50px rgba(0,0,0,.35);text-align:center}
+  .card h1{margin:0 0 6px;font-size:26px;color:#d93d72}
+  .card p{margin:6px 0;line-height:1.5}
+  .card ul{text-align:left;margin:10px 0;padding-left:20px;line-height:1.6;font-size:14.5px}
+  .card .go{margin-top:10px;border:none;background:linear-gradient(90deg,#ff7aa2,#ff9a6b);color:#fff;
+    font-size:17px;font-weight:700;border-radius:999px;padding:11px 28px;cursor:pointer;box-shadow:0 6px 16px rgba(255,93,143,.4)}
+  @media (max-width:600px){ .act{padding:7px 10px;font-size:13.5px} .act kbd{display:none} .card h1{font-size:22px} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="bar">
+    <button class="act" data-a="talk">💬 Bắt chuyện <kbd>1</kbd></button>
+    <button class="act" data-a="gift">🐚 Tặng vỏ sò <kbd>2</kbd></button>
+    <button class="act" data-a="hand" id="bHand">🤝 <span>Cầm tay</span> <small id="hHand"></small> <kbd>3</kbd></button>
+    <button class="act" data-a="kiss" id="bKiss">😘 Hôn má <small id="hKiss"></small> <kbd>4</kbd></button>
+    <button class="act" data-a="heart">💗 Thả tim <kbd>5</kbd></button>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="card" id="card">
+    <h1>🏖️ Hẹn Hò Bên Biển</h1>
+    <p>Chiều nay biển lặng, gió mát. Minh ra bãi biển và tình cờ gặp Lan.<br>Hãy làm quen thật khéo để chiếm được cảm tình của cô ấy!</p>
+    <ul>
+      <li><b>Di chuyển:</b> phím mũi tên / WASD, hoặc chạm vào bãi cát.</li>
+      <li><b>Nhặt vỏ sò</b> lấp lánh trên cát để làm quà tặng.</li>
+      <li>Lại gần Lan rồi <b>bắt chuyện, tặng quà, thả tim</b> để tăng thiện cảm.</li>
+      <li><b>Cầm tay</b> khi thiện cảm ≥ 30, <b>hôn má</b> khi ≥ 60. Vội quá sẽ bị từ chối đấy!</li>
+      <li>Đạt 100 thiện cảm và trao một nụ hôn má để <b>thành đôi</b> trong hoàng hôn 🌅</li>
+    </ul>
+    <button class="go" id="go">Bắt đầu</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const W = 960, H = 540;
+const HORIZON = 215, SAND_TOP = 345, FLOOR_MIN = 385, FLOOR_MAX = 515;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const bar = document.getElementById('bar');
+let scale = 1, dpr = 1;
+
+function resize(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const availW = window.innerWidth - 32;
+  const availH = window.innerHeight - bar.offsetHeight - 30;
+  scale = Math.max(0.2, Math.min(availW / W, availH / H));
+  cv.style.width = (W * scale) + 'px';
+  cv.style.height = (H * scale) + 'px';
+  cv.width = Math.round(W * scale * dpr);
+  cv.height = Math.round(H * scale * dpr);
+}
+window.addEventListener('resize', resize);
+
+// ---------- helpers ----------
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist = (a, b) => Math.hypot(a.x - b.x, (a.y - b.y) * 1.6);
+const lerp = (a, b, t) => a + (b - a) * t;
+function hex(c){ const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function mix(a, b, t){ const A = hex(a), B = hex(b);
+  return `rgb(${Math.round(lerp(A[0],B[0],t))},${Math.round(lerp(A[1],B[1],t))},${Math.round(lerp(A[2],B[2],t))})`; }
+const depth = y => 0.85 + (y - FLOOR_MIN) / (FLOOR_MAX - FLOOR_MIN) * 0.25;
+
+function rrect(x, y, w, h, r){
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function heartPath(x, y, s){ // centred at x,y, size s
+  y -= s / 2;
+  ctx.beginPath(); ctx.moveTo(x, y + s * .3);
+  ctx.bezierCurveTo(x, y, x - s * .5, y, x - s * .5, y + s * .3);
+  ctx.bezierCurveTo(x - s * .5, y + s * .6, x, y + s * .8, x, y + s);
+  ctx.bezierCurveTo(x, y + s * .8, x + s * .5, y + s * .6, x + s * .5, y + s * .3);
+  ctx.bezierCurveTo(x + s * .5, y, x, y, x, y + s * .3); ctx.closePath();
+}
+
+// ---------- sound ----------
+let AC = null;
+function beep(freq, dur = .12, type = 'sine', vol = .08, delay = 0){
+  try{
+    if(!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    const t = AC.currentTime + delay;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur + .02);
+  }catch(e){}
+}
+const sfx = {
+  heart(){ beep(880, .12); beep(1175, .15, 'sine', .07, .08); },
+  good(){ beep(660, .1); beep(880, .1, 'sine', .07, .09); beep(1320, .18, 'sine', .06, .18); },
+  bad(){ beep(240, .2, 'triangle', .09); beep(180, .25, 'triangle', .08, .12); },
+  pick(){ beep(1400, .08, 'triangle', .06); beep(1900, .1, 'triangle', .05, .06); },
+  kiss(){ beep(1000, .06, 'square', .04); beep(1500, .08, 'square', .03, .07); }
+};
+
+// ---------- scenery (static random) ----------
+const sandDots = Array.from({length: 160}, () => ({x: rand(0, W), y: rand(SAND_TOP + 10, H), r: rand(.6, 1.8), d: Math.random() < .5}));
+const clouds = Array.from({length: 5}, (_, i) => ({x: i * 220 + rand(0, 80), y: rand(40, 140), s: rand(.7, 1.3), v: rand(4, 10)}));
+const gulls = Array.from({length: 3}, () => ({x: rand(0, W), y: rand(60, 170), v: rand(25, 45), ph: rand(0, 6)}));
+
+// ---------- dialogue ----------
+const TALK = [
+  [ // người lạ
+    ['Chào bạn, biển hôm nay đẹp nhỉ?', 'Ừ, gió mát thật! 😊'],
+    ['Bạn hay ra biển này à?', 'Thỉnh thoảng thôi, chiều nào rảnh là ra.'],
+    ['Mình ngồi đây cạnh bạn được không?', 'Được chứ, cứ tự nhiên!'],
+    ['Mình tên Minh, còn bạn?', 'Mình là Lan. Rất vui được làm quen!'],
+  ],
+  [ // bạn bè
+    ['Nụ cười của Lan đẹp hơn cả hoàng hôn đấy.', 'Minh khéo nói ghê 😊'],
+    ['Mai mình lại ra biển cùng nhau nhé?', 'Ừ, hẹn Minh nhé!'],
+    ['Lan thích ăn kem dừa không?', 'Thích lắm! Lát mình đi ăn nhé 🍦'],
+    ['Nghe sóng vỗ thấy lòng nhẹ hẳn.', 'Ừ... ở đây yên bình thật.'],
+  ],
+  [ // cảm nắng
+    ['Ở cạnh Lan, anh thấy bình yên lạ.', 'Em cũng vậy... 💗'],
+    ['Mình cùng ngắm hoàng hôn nhé.', 'Vâng, ngồi sát vào đây ❤'],
+    ['Lan có tin vào tiếng sét ái tình không?', 'Trước thì không... giờ thì có rồi 🙈'],
+  ]
+];
+
+// ---------- state ----------
+let S, keys = {}, started = false;
+function spawnShell(){
+  for(let i = 0; i < 20; i++){
+    const it = {x: rand(60, 900), y: rand(FLOOR_MIN + 5, FLOOR_MAX - 5), ph: rand(0, 6), hue: pick(['#ffb3c7', '#ffe0b8', '#f6d2ff', '#fff'])};
+    if(Math.hypot(it.x - 830, it.y - 405) > 70) return S.items.push(it);
+  }
+}
+function reset(){
+  S = {
+    t: 0, aff: 0, shownAff: 0, shells: 0, holding: false, side: 1, handFirst: false, kissed: 0,
+    p: {x: 200, y: 455, dir: 1, walk: 0, moving: false, tx: null, ty: null, lean: 0},
+    g: {x: 640, y: 440, dir: -1, walk: 0, moving: false, tx: null, ty: null, idle: 2, blush: 0, lean: 0},
+    items: [], parts: [], bubbles: {}, anim: null, toast: null,
+    cd: {talk: 0, heart: 0, kiss: 0, walkGain: 0}, respawn: 0, ended: false, endT: 0, talkIdx: [0, 0, 0]
+  };
+  for(let i = 0; i < 4; i++) spawnShell();
+}
+reset();
+
+function stage(){ return S.aff < 30 ? 0 : S.aff < 60 ? 1 : 2; }
+const STAGE_NAME = ['Người lạ', 'Bạn bè', 'Cảm nắng', 'Người thương'];
+function say(who, text, life = 2.8){ S.bubbles[who] = {text, t: life, max: life}; }
+function toast(text){ S.toast = {text, t: 2.4}; }
+function addAff(n){
+  const before = S.aff;
+  S.aff = clamp(S.aff + n, 0, 100);
+  const d = Math.round(S.aff - before);
+  if(d !== 0) S.parts.push({kind: 'text', text: (d > 0 ? '+' : '') + d + ' 💗', x: S.g.x, y: S.g.y - 110 * depth(S.g.y), vx: 0, vy: -30, life: 1.4, max: 1.4, color: d > 0 ? '#ff4f86' : '#6b7c93'});
+}
+function hearts(x, y, n, opt = {}){
+  for(let i = 0; i < n; i++) S.parts.push({kind: 'heart', x: x + rand(-10, 10), y: y + rand(-6, 6),
+    vx: (opt.vx || 0) + rand(-30, 30), vy: rand(-90, -40) * (opt.up || 1), life: rand(1.2, 2), max: 2,
+    size: rand(10, 20) * (opt.big || 1), color: pick(opt.colors || ['#ff4f86', '#ff7aa2', '#ff3366', '#ffb3c7'])});
+}
+function sparkle(x, y){
+  for(let i = 0; i < 10; i++){ const a = rand(0, Math.PI * 2), v = rand(30, 80);
+    S.parts.push({kind: 'spark', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, life: .7, max: .7, size: rand(2, 4), color: '#fff6b0'}); }
+}
+const near = () => dist(S.p, S.g) < 95;
+
+// ---------- actions ----------
+function act(type){
+  if(!started || S.ended || S.anim) return;
+  const p = S.p, g = S.g;
+  if(type === 'heart'){
+    const toward = Math.sign(g.x - p.x) || p.dir;
+    hearts(p.x + toward * 10, p.y - 95 * depth(p.y), 5, {vx: toward * 60});
+    sfx.heart();
+    if(near() && S.cd.heart <= 0){
+      addAff(2); S.cd.heart = 2;
+      if(S.aff >= 40 && Math.random() < .6){
+        setTimeout(() => { if(S.ended) return; hearts(S.g.x, S.g.y - 95 * depth(S.g.y), 5, {vx: -toward * 60}); say('g', pick(['Tim gửi lại nè 💗', 'Hihi 💕', '❤❤❤'])); sfx.heart(); }, 600);
+      }
+    }
+    return;
+  }
+  if(!near()){ toast('Hãy lại gần Lan hơn một chút nhé!'); return; }
+  p.dir = Math.sign(g.x - p.x) || p.dir;
+  if(!S.holding) g.dir = -p.dir, g.tx = null, g.moving = false, g.idle = Math.max(g.idle, 2.5);
+
+  switch(type){
+    case 'talk': {
+      if(S.cd.talk > 0){ say('g', pick(['Ừm... Minh vừa nói rồi mà 😅', 'Từ từ thôi, mình đang nghe nè.'])); return; }
+      const st = stage(), list = TALK[st];
+      const line = list[S.talkIdx[st] % list.length]; S.talkIdx[st]++;
+      say('p', line[0], 2.4);
+      setTimeout(() => { if(!S.ended){ say('g', line[1], 2.8); g.blush = Math.max(g.blush, .4); } }, 900);
+      addAff(5); S.cd.talk = 2.6; beep(620, .08, 'triangle', .05);
+      break;
+    }
+    case 'gift': {
+      if(S.shells <= 0){ toast('Nhặt vỏ sò lấp lánh trên bãi cát trước đã! ✨'); return; }
+      S.shells--;
+      say('p', pick(['Tặng Lan vỏ sò này nè 🐚', 'Anh nhặt được cái này đẹp lắm!', 'Cái này xinh như Lan vậy 😄']), 2.2);
+      setTimeout(() => { if(!S.ended){ say('g', pick(['Đẹp quá! Cảm ơn Minh 🐚', 'Em sẽ giữ thật kỹ 💕', 'Ôi xinh ghê!'])); hearts(g.x, g.y - 95 * depth(g.y), 4); } }, 700);
+      addAff(10); g.blush = 1; sfx.good();
+      break;
+    }
+    case 'hand': {
+      if(S.holding){ S.holding = false; say('g', 'Ơ... buông tay rồi à? 🥺'); return; }
+      if(S.aff >= 30){
+        S.holding = true; S.side = Math.sign(g.x - p.x) || 1;
+        say('p', 'Mình đi dạo cùng nhau nhé?', 2);
+        setTimeout(() => { if(!S.ended) say('g', pick(['Ừm... 🙈', 'Tay Minh ấm ghê 💗'])); }, 700);
+        g.blush = 1; hearts((p.x + g.x) / 2, p.y - 50, 6); sfx.good();
+        if(!S.handFirst){ S.handFirst = true; addAff(8); }
+      } else {
+        say('g', pick(['Mới quen mà... từ từ đã 🙈', 'Ơ, nhanh thế! 😳']));
+        addAff(-3); sfx.bad();
+        g.tx = clamp(g.x + Math.sign(g.x - p.x || 1) * 60, 40, 920); g.ty = g.y; g.idle = 2;
+      }
+      break;
+    }
+    case 'kiss': {
+      if(S.cd.kiss > 0){ say('g', 'Hôn hoài vậy! 🙈'); return; }
+      if(S.aff >= 60){
+        const sd = Math.sign(g.x - p.x) || 1;
+        S.anim = {type: 'kiss', t: 0, dur: 1.8, sx: p.x, sy: p.y, side: sd};
+        S.cd.kiss = 5;
+      } else {
+        say('g', pick(['Ơ kìa! Còn sớm lắm nhé 😳', 'Này này, chưa được đâu! 🙅‍♀️']));
+        addAff(-5); sfx.bad();
+        g.tx = clamp(g.x + Math.sign(g.x - p.x || 1) * 80, 40, 920); g.ty = g.y; g.idle = 2.5;
+      }
+      break;
+    }
+  }
+}
+
+// ---------- input ----------
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  const map = {'1': 'talk', '2': 'gift', '3': 'hand', '4': 'kiss', '5': 'heart', ' ': 'heart'};
+  if(map[e.key]){ e.preventDefault(); act(map[e.key]); }
+  if(e.key.startsWith('Arrow')) e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+bar.addEventListener('click', e => { const b = e.target.closest('.act'); if(b) act(b.dataset.a); });
+cv.addEventListener('pointerdown', e => {
+  if(!started || S.ended) return;
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  // chạm vào Lan khi đang ở gần → thả tim
+  if(near() && Math.abs(x - S.g.x) < 25 && y > S.g.y - 100 && y < S.g.y + 5){ act('heart'); return; }
+  S.p.tx = clamp(x, 30, W - 30); S.p.ty = clamp(y, FLOOR_MIN, FLOOR_MAX);
+});
+
+// ---------- update ----------
+function moveToward(c, tx, ty, sp, dt){
+  const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy);
+  if(d < 3){ c.x = tx; c.y = ty; return true; }
+  const st = Math.min(d, sp * dt);
+  c.x += dx / d * st; c.y += dy / d * st;
+  if(Math.abs(dx) > 2) c.dir = Math.sign(dx);
+  c.moving = true; c.walk += dt * 11;
+  return false;
+}
+
+function update(dt){
+  S.t += dt;
+  for(const k in S.cd) S.cd[k] = Math.max(0, S.cd[k] - dt);
+  const p = S.p, g = S.g;
+  p.moving = false; g.moving = false;
+
+  if(S.anim && S.anim.type === 'kiss'){
+    const a = S.anim; a.t += dt;
+    const k = a.t / a.dur;
+    const tx = g.x - a.side * 34 * depth(g.y), ty = g.y;
+    if(k < .3){ const q = k / .3; p.x = lerp(a.sx, tx, q); p.y = lerp(a.sy, ty, q); p.dir = a.side; p.moving = true; p.walk += dt * 11; }
+    else { p.x = tx; p.y = ty; p.dir = a.side; }
+    g.dir = S.holding ? g.dir : -a.side;
+    p.lean = k > .3 && k < .8 ? Math.sin((k - .3) / .5 * Math.PI) : 0;
+    if(!a.fx && k > .52){
+      a.fx = true; sfx.kiss(); g.blush = 1.4; S.kissed++;
+      S.parts.push({kind: 'text', text: 'chụt 💋', x: g.x, y: g.y - 120, vx: 0, vy: -25, life: 1.5, max: 1.5, color: '#e0245e', big: true});
+      hearts(g.x, g.y - 90, 10, {big: 1.3});
+      addAff(15);
+    }
+    if(!a.say && k > .75){ a.say = true; say('g', S.aff >= 100 ? 'Em... cũng thích anh lâu rồi 💞' : pick(['A... anh này! 🙈', 'Mặt em đỏ hết rồi nè 😳💗', 'Hihi... 💕'])); }
+    if(a.t >= a.dur){ S.anim = null; p.lean = 0; if(S.aff >= 100) startEnding(); }
+  } else if(!S.ended){
+    let dx = 0, dy = 0;
+    if(keys['arrowleft'] || keys['a']) dx -= 1;
+    if(keys['arrowright'] || keys['d']) dx += 1;
+    if(keys['arrowup'] || keys['w']) dy -= 1;
+    if(keys['arrowdown'] || keys['s']) dy += 1;
+    if(dx || dy){
+      p.tx = null; const l = Math.hypot(dx, dy);
+      p.x += dx / l * 170 * dt; p.y += dy / l * 110 * dt;
+      if(dx) p.dir = Math.sign(dx);
+      p.moving = true; p.walk += dt * 11;
+    } else if(p.tx !== null){
+      if(moveToward(p, p.tx, p.ty, 170, dt)) p.tx = null;
+    }
+    p.x = clamp(p.x, 30, W - 30); p.y = clamp(p.y, FLOOR_MIN, FLOOR_MAX);
+  }
+
+  // Lan
+  if(S.holding && !(S.anim)){
+    const tx = clamp(p.x + S.side * 40 * depth(p.y), 30, W - 30), ty = p.y;
+    const d = Math.hypot(tx - g.x, ty - g.y);
+    if(d > 2) moveToward(g, tx, ty, Math.max(120, d * 8), dt);
+    g.dir = p.moving ? p.dir : -S.side;
+    if(p.moving){ if(S.cd.walkGain <= 0){ S.cd.walkGain = 3; addAff(1); hearts((p.x + g.x) / 2, p.y - 60, 1); } }
+  } else if(!S.anim && !S.ended){
+    if(g.tx !== null){
+      if(moveToward(g, g.tx, g.ty, 70, dt)) g.tx = null;
+    } else {
+      g.idle -= dt;
+      if(near()){ g.dir = Math.sign(p.x - g.x) || g.dir; if(g.idle < 1) g.idle = 1; }
+      else if(g.idle <= 0){ g.tx = rand(380, 900); g.ty = rand(FLOOR_MIN, FLOOR_MAX); g.idle = rand(2, 5); }
+    }
+    g.x = clamp(g.x, 30, W - 30); g.y = clamp(g.y, FLOOR_MIN, FLOOR_MAX);
+  }
+  g.blush = Math.max(0, g.blush - dt * .25);
+
+  // vỏ sò
+  for(let i = S.items.length - 1; i >= 0; i--){
+    const it = S.items[i];
+    if(Math.hypot(it.x - p.x, (it.y - p.y) * 1.5) < 28){
+      S.items.splice(i, 1); S.shells++; sparkle(it.x, it.y - 5); sfx.pick();
+      S.parts.push({kind: 'text', text: '+1 🐚', x: it.x, y: it.y - 20, vx: 0, vy: -30, life: 1, max: 1, color: '#c26b2a'});
+      S.respawn = rand(3, 6);
+    }
+  }
+  if(S.items.length < 4){ S.respawn -= dt; if(S.respawn <= 0){ spawnShell(); S.respawn = rand(3, 6); } }
+
+  // particles
+  for(let i = S.parts.length - 1; i >= 0; i--){
+    const q = S.parts[i]; q.life -= dt; q.x += q.vx * dt; q.y += q.vy * dt;
+    if(q.kind === 'heart'){ q.vx *= .97; q.x += Math.sin((S.t + i) * 4) * 12 * dt; }
+    if(q.kind === 'spark') q.vy += 120 * dt;
+    if(q.life <= 0) S.parts.splice(i, 1);
+  }
+  for(const k in S.bubbles){ S.bubbles[k].t -= dt; if(S.bubbles[k].t <= 0) delete S.bubbles[k]; }
+  if(S.toast){ S.toast.t -= dt; if(S.toast.t <= 0) S.toast = null; }
+  S.shownAff = lerp(S.shownAff, S.aff, Math.min(1, dt * 5));
+
+  // clouds & gulls
+  clouds.forEach(c => { c.x += c.v * dt; if(c.x > W + 120) c.x = -140; });
+  gulls.forEach(gl => { gl.x += gl.v * dt; gl.ph += dt * 6; if(gl.x > W + 30){ gl.x = -30; gl.y = rand(60, 170); } });
+
+  if(S.ended){
+    S.endT += dt;
+    if(Math.random() < dt * 14) hearts(rand(40, W - 40), rand(200, 500), 1, {big: rand(1, 2.2), up: 1.2});
+    if(S.endT > 3.2 && !S.endShown){ S.endShown = true; showEnd(); }
+  }
+  updateButtons();
+}
+
+function startEnding(){
+  S.ended = true; S.endT = 0; S.holding = true; S.side = Math.sign(S.g.x - S.p.x) || 1;
+  S.p.dir = S.side; S.g.dir = -S.side;
+  sfx.good(); setTimeout(sfx.good, 400);
+  toast('💞 Lan đã đồng ý làm người yêu của Minh!');
+}
+
+// ---------- drawing ----------
+function drawBackground(){
+  const k = S.ended ? Math.min(1, .9 + S.endT * .05) : (S.shownAff / 100) * .9; // 0 = trưa, 1 = hoàng hôn
+  // sky
+  const sky = ctx.createLinearGradient(0, 0, 0, HORIZON);
+  sky.addColorStop(0, mix('#5fb4ec', '#4a3a86', k));
+  sky.addColorStop(.6, mix('#a6dcf7', '#ff8f70', k));
+  sky.addColorStop(1, mix('#dff4ff', '#ffd08a', k));
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, HORIZON + 1);
+
+  // sun
+  const sx = lerp(720, 620, k), sy = lerp(85, HORIZON - 18, k), sr = lerp(36, 46, k);
+  const glow = ctx.createRadialGradient(sx, sy, sr * .5, sx, sy, sr * 3.2);
+  glow.addColorStop(0, mix('#fff8c4', '#ffb36b', k).replace('rgb', 'rgba').replace(')', ',.55)'));
+  glow.addColorStop(1, 'rgba(255,200,120,0)');
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sx, sy, sr * 3.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = mix('#fff3a6', '#ff7b45', k); ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+
+  // clouds
+  clouds.forEach(c => {
+    ctx.fillStyle = k > .5 ? `rgba(255,${Math.round(lerp(255, 190, k))},${Math.round(lerp(255, 180, k))},.75)` : 'rgba(255,255,255,.85)';
+    const s = c.s;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 18 * s, 0, 7); ctx.arc(c.x + 22 * s, c.y - 8 * s, 22 * s, 0, 7);
+    ctx.arc(c.x + 46 * s, c.y, 17 * s, 0, 7); ctx.arc(c.x + 24 * s, c.y + 6 * s, 18 * s, 0, 7);
+    ctx.fill();
+  });
+  // gulls
+  ctx.strokeStyle = k > .6 ? '#3a2a40' : '#4a5568'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  gulls.forEach(gl => {
+    const f = Math.sin(gl.ph) * 4;
+    ctx.beginPath(); ctx.moveTo(gl.x - 10, gl.y - f); ctx.quadraticCurveTo(gl.x - 5, gl.y - 6, gl.x, gl.y);
+    ctx.quadraticCurveTo(gl.x + 5, gl.y - 6, gl.x + 10, gl.y - f); ctx.stroke();
+  });
+
+  // sea
+  const sea = ctx.createLinearGradient(0, HORIZON, 0, SAND_TOP);
+  sea.addColorStop(0, mix('#2a86c7', '#5a3f7d', k));
+  sea.addColorStop(1, mix('#48c6d8', '#e08a7a', k));
+  ctx.fillStyle = sea; ctx.fillRect(0, HORIZON, W, SAND_TOP - HORIZON + 20);
+  // distant island
+  ctx.fillStyle = mix('#3d7a8f', '#4a3560', k);
+  ctx.beginPath(); ctx.moveTo(60, HORIZON); ctx.quadraticCurveTo(140, HORIZON - 28, 230, HORIZON); ctx.fill();
+  // sun reflection
+  ctx.fillStyle = `rgba(255,${Math.round(lerp(255, 200, k))},150,${.25 + k * .35})`;
+  for(let i = 0; i < 9; i++){
+    const yy = HORIZON + 6 + i * 13, w = (40 - i * 2) * (1 + Math.sin(S.t * 2 + i) * .25) * (1 + k * .5);
+    ctx.fillRect(sx - w / 2, yy, w, 3);
+  }
+  // sailboat
+  const bx = (S.t * 8) % (W + 200) - 100, by = HORIZON + 16;
+  ctx.fillStyle = mix('#ffffff', '#ffd9c9', k);
+  ctx.beginPath(); ctx.moveTo(bx, by - 26); ctx.lineTo(bx, by - 2); ctx.lineTo(bx + 16, by - 4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = mix('#7a4b2a', '#3b2433', k); ctx.fillRect(bx - 12, by - 2, 30, 5);
+  // waves
+  ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 2;
+  for(let r = 0; r < 4; r++){
+    const yy = HORIZON + 30 + r * 26;
+    ctx.beginPath();
+    for(let x = 0; x <= W; x += 16){
+      const y = yy + Math.sin(x * .03 + S.t * 1.6 + r) * 3;
+      x ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.globalAlpha = .35 + r * .12; ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  // sand
+  const ebb = Math.sin(S.t * .9) * 8;
+  const sand = ctx.createLinearGradient(0, SAND_TOP, 0, H);
+  sand.addColorStop(0, mix('#f3d9a0', '#e9b98a', k));
+  sand.addColorStop(1, mix('#e6c07f', '#c9926c', k));
+  ctx.fillStyle = sand;
+  ctx.beginPath(); ctx.moveTo(0, H);
+  for(let x = 0; x <= W; x += 20) ctx.lineTo(x, SAND_TOP + ebb + Math.sin(x * .02 + S.t) * 5);
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+  // wet sand + foam
+  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 4;
+  ctx.beginPath();
+  for(let x = 0; x <= W; x += 20){ const y = SAND_TOP + ebb + Math.sin(x * .02 + S.t) * 5; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(160,120,70,.25)';
+  sandDots.forEach(d => { ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7); ctx.fill(); });
+
+  return k;
+}
+
+function drawPalm(x, y, k){
+  ctx.save(); ctx.translate(x, y);
+  const sway = Math.sin(S.t * 1.2) * .05;
+  ctx.strokeStyle = mix('#8a5a34', '#4a2e2a', k); ctx.lineWidth = 14; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-20, -90, 18, -190); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,.15)'; ctx.lineWidth = 2;
+  for(let i = 1; i < 10; i++){ const t = i / 10, px = lerp(0, 18, t * t) - 20 * 2 * t * (1 - t), py = -190 * t;
+    ctx.beginPath(); ctx.moveTo(px - 7, py); ctx.lineTo(px + 7, py - 3); ctx.stroke(); }
+  ctx.translate(18, -190); ctx.rotate(sway);
+  ctx.fillStyle = mix('#2f9e5b', '#2d4a3a', k);
+  for(let i = 0; i < 7; i++){
+    const a = -Math.PI + i * (Math.PI / 6) + Math.sin(S.t * 1.5 + i) * .04;
+    ctx.save(); ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(45, -22, 90, 12); ctx.quadraticCurveTo(45, -4, 0, 0); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = '#6b4226'; ctx.beginPath(); ctx.arc(-4, 6, 6, 0, 7); ctx.arc(6, 8, 6, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function drawUmbrella(x, y, k){
+  // khăn
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = mix('#ff9fb8', '#d9708c', k); rrect(-50, -8, 100, 34, 4); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.6)'; for(let i = 0; i < 4; i++) ctx.fillRect(-44 + i * 25, -8, 8, 34);
+  // ô
+  ctx.strokeStyle = '#7a6a5a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(25, 20); ctx.lineTo(35, -110); ctx.stroke();
+  ctx.translate(35, -110); ctx.rotate(.08);
+  const cols = ['#ff6b6b', '#fff', '#ffd166', '#fff', '#4dabf7', '#fff'];
+  for(let i = 0; i < 6; i++){
+    ctx.fillStyle = cols[i];
+    ctx.beginPath(); ctx.moveTo(0, -6);
+    const a0 = Math.PI + i * Math.PI / 6, a1 = a0 + Math.PI / 6;
+    ctx.lineTo(Math.cos(a0) * 70, Math.sin(a0) * 30 + 14); ctx.lineTo(Math.cos(a1) * 70, Math.sin(a1) * 30 + 14); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  // ly nước dừa
+  ctx.fillStyle = '#6b8e23'; ctx.beginPath(); ctx.arc(x - 70, y + 6, 11, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#ff6b9a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 68, y - 3); ctx.lineTo(x - 62, y - 18); ctx.stroke();
+}
+
+function drawShell(it){
+  const tw = (Math.sin(S.t * 4 + it.ph) + 1) / 2;
+  ctx.save(); ctx.translate(it.x, it.y);
+  ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.beginPath(); ctx.ellipse(0, 2, 10, 3, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = it.hue; ctx.strokeStyle = 'rgba(150,90,80,.6)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, 0);
+  ctx.arc(0, 0, 10, Math.PI * 1.05, Math.PI * 1.95); ctx.closePath(); ctx.fill(); ctx.stroke();
+  for(let i = 1; i < 5; i++){ const a = Math.PI * (1.05 + i * .18); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 10, Math.sin(a) * 10); ctx.stroke(); }
+  // lấp lánh
+  ctx.fillStyle = `rgba(255,255,255,${.4 + tw * .6})`;
+  const ss = 2 + tw * 3;
+  ctx.beginPath(); ctx.moveTo(6, -14 - ss); ctx.lineTo(7, -14); ctx.lineTo(6 + ss, -13); ctx.lineTo(7, -12); ctx.lineTo(6, -12 + ss); ctx.lineTo(5, -12); ctx.lineTo(6 - ss, -13); ctx.lineTo(5, -14); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function line(x1, y1, x2, y2){ ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+
+// o: {female, skin, top, bottom, hair, hand:{x,y}|null, blush}
+function drawPerson(c, o){
+  const s = depth(c.y), d = c.dir;
+  ctx.save(); ctx.translate(c.x, c.y); ctx.scale(s, s);
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(0, 0, 20, 6, 0, 0, 7); ctx.fill();
+  const sw = c.moving ? Math.sin(c.walk) * 9 : 0;
+  const bob = c.moving ? -Math.abs(Math.sin(c.walk)) * 2 : 0;
+  ctx.translate(0, bob);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // chân
+  ctx.strokeStyle = o.skin; ctx.lineWidth = 6;
+  line(-5, -32, -5 + sw, -3); line(5, -32, 5 - sw, -3);
+  ctx.strokeStyle = o.sandal; ctx.lineWidth = 4;
+  line(-5 + sw - 3, -2, -5 + sw + 4, -2); line(5 - sw - 3, -2, 5 - sw + 4, -2);
+
+  // thân (nghiêng khi hôn)
+  ctx.save();
+  ctx.translate(0, -32); ctx.rotate(d * (c.lean || 0) * .32); ctx.translate(0, 32);
+  if(o.female){
+    ctx.fillStyle = o.top;
+    ctx.beginPath(); ctx.moveTo(-9, -62); ctx.lineTo(9, -62); ctx.lineTo(17, -26 + Math.sin(S.t * 3) * 1); ctx.lineTo(-17, -26 - Math.sin(S.t * 3) * 1); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    for(let i = 0; i < 4; i++){ ctx.beginPath(); ctx.arc(-8 + i * 6, -36 - (i % 2) * 10, 2.2, 0, 7); ctx.fill(); }
+    ctx.fillStyle = o.bottom; ctx.fillRect(-10, -64, 20, 6);
+  } else {
+    ctx.fillStyle = o.bottom; rrect(-11, -40, 22, 13, 3); ctx.fill();
+    ctx.fillStyle = o.top; rrect(-12, -64, 24, 28, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    [[-6, -56], [5, -50], [-3, -44], [7, -60]].forEach(([a, b]) => { ctx.beginPath(); ctx.arc(a, b, 2.3, 0, 7); ctx.fill(); });
+    ctx.strokeStyle = 'rgba(0,0,0,.15)'; ctx.lineWidth = 1.5; line(0, -64, 0, -37);
+  }
+  // tay
+  ctx.strokeStyle = o.skin; ctx.lineWidth = 5.5;
+  const handSide = o.hand ? Math.sign(o.hand.x) || d : 0;
+  [-1, 1].forEach(side => {
+    const shx = side * 10, shy = -58;
+    if(o.hand && side === handSide){
+      const hx = clamp(o.hand.x, -40, 40), hy = o.hand.y;
+      ctx.beginPath(); ctx.moveTo(shx, shy); ctx.quadraticCurveTo(shx + side * 6, -44, hx, hy); ctx.stroke();
+      ctx.fillStyle = o.skin; ctx.beginPath(); ctx.arc(hx, hy, 3.6, 0, 7); ctx.fill();
+    } else {
+      const swing = (c.moving ? -Math.sin(c.walk) * side * 6 : 0);
+      line(shx, shy, side * 13 + swing, -36);
+    }
+  });
+
+  // đầu
+  const hx = d * 2, hy = -78;
+  if(o.female){ // tóc sau
+    ctx.fillStyle = o.hair;
+    ctx.beginPath(); ctx.ellipse(hx - d * 3, hy + 10, 15, 22, 0, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = o.skin; ctx.beginPath(); ctx.arc(hx, hy, 13, 0, 7); ctx.fill();
+  ctx.fillStyle = o.hair;
+  if(o.female){
+    ctx.beginPath(); ctx.arc(hx, hy - 2, 14, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(hx - 13, hy - 4); ctx.quadraticCurveTo(hx + d * 2, hy - 2, hx + 13, hy - 6); ctx.lineTo(hx + 12, hy - 12); ctx.lineTo(hx - 12, hy - 12); ctx.fill();
+    // hoa trên tóc
+    ctx.fillStyle = '#ff5d8f';
+    for(let i = 0; i < 5; i++){ const a = i * Math.PI * .4; ctx.beginPath(); ctx.arc(hx - d * 10 + Math.cos(a) * 3.5, hy - 10 + Math.sin(a) * 3.5, 2.6, 0, 7); ctx.fill(); }
+    ctx.fillStyle = '#ffe066'; ctx.beginPath(); ctx.arc(hx - d * 10, hy - 10, 1.8, 0, 7); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(hx, hy - 3, 13.5, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(hx - 13, hy - 5); ctx.lineTo(hx + d * 6, hy - 8); ctx.lineTo(hx + 13, hy - 4); ctx.lineTo(hx + 12, hy - 12); ctx.lineTo(hx - 12, hy - 12); ctx.fill();
+  }
+  // mặt
+  const ex = hx + d * 3;
+  const happy = (o.blush || 0) > .8;
+  const blink = (S.t + (o.female ? .7 : 0)) % 3.4 < .12;
+  ctx.strokeStyle = '#2b1d1d'; ctx.fillStyle = '#2b1d1d'; ctx.lineWidth = 1.8;
+  [-4.5, 4.5].forEach(o2 => {
+    if(happy){ ctx.beginPath(); ctx.arc(ex + o2, hy + 1, 2.4, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+    else if(blink){ line(ex + o2 - 2, hy, ex + o2 + 2, hy); }
+    else { ctx.beginPath(); ctx.arc(ex + o2, hy, 1.9, 0, 7); ctx.fill(); }
+  });
+  ctx.beginPath(); ctx.arc(ex, hy + 4, 3.6, Math.PI * .15, Math.PI * .85); ctx.stroke();
+  const bl = clamp((o.blush || 0) * .55 + (o.female ? .2 : 0), 0, .8);
+  if(bl > 0){ ctx.fillStyle = `rgba(255,105,140,${bl})`; ctx.beginPath(); ctx.arc(ex - 7.5, hy + 4, 2.8, 0, 7); ctx.arc(ex + 7.5, hy + 4, 2.8, 0, 7); ctx.fill(); }
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawBubble(c, b, lift = 0){
+  const s = depth(c.y);
+  const a = Math.min(1, b.t * 3, (b.max - b.t) * 6 + .2);
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.font = '600 15px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  const w = Math.min(320, ctx.measureText(b.text).width + 22), h = 30;
+  let x = clamp(c.x - w / 2, 8, W - w - 8);
+  const y = c.y - 108 * s - h - 6 - lift;
+  ctx.fillStyle = 'rgba(255,255,255,.96)'; ctx.strokeStyle = 'rgba(255,93,143,.6)'; ctx.lineWidth = 1.5;
+  rrect(x, y, w, h, 12); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(c.x - 6, y + h - 1); ctx.lineTo(c.x, y + h + 8); ctx.lineTo(c.x + 6, y + h - 1); ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,.96)'; ctx.fill();
+  ctx.fillStyle = '#3b2b2b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(b.text, x + w / 2, y + h / 2 + 1, w - 14);
+  ctx.restore();
+}
+
+function drawHUD(){
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,.85)'; rrect(14, 12, 268, 62, 14); ctx.fill();
+  ctx.font = '700 15px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#d93d72'; ctx.textAlign = 'left';
+  const st = S.aff >= 100 ? 3 : stage();
+  ctx.fillText('💗 Thiện cảm: ' + STAGE_NAME[st], 26, 30);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#9b4d2b'; ctx.fillText('🐚 × ' + S.shells, 270, 30);
+  // thanh
+  ctx.fillStyle = '#ffe3ec'; rrect(26, 46, 244, 14, 7); ctx.fill();
+  const gw = 244 * S.shownAff / 100;
+  if(gw > 1){ const gr = ctx.createLinearGradient(26, 0, 270, 0); gr.addColorStop(0, '#ff9ab8'); gr.addColorStop(1, '#ff3d7f');
+    ctx.fillStyle = gr; rrect(26, 46, Math.max(14, gw), 14, 7); ctx.fill(); }
+  ctx.fillStyle = 'rgba(217,61,114,.5)'; [30, 60].forEach(m => ctx.fillRect(26 + 244 * m / 100 - 1, 44, 2, 18));
+  ctx.fillStyle = '#5a2a3a'; ctx.font = '700 11px system-ui,sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(Math.round(S.aff) + '/100', 148, 53);
+
+  // gợi ý
+  let hint = '';
+  if(S.ended) hint = '💞 Thành đôi rồi!';
+  else if(!near()) hint = S.shells === 0 && S.items.length ? 'Nhặt vỏ sò ✨ rồi lại gần Lan nhé' : 'Lại gần Lan để trò chuyện';
+  else if(S.aff < 30) hint = 'Bắt chuyện, tặng quà để làm quen';
+  else if(S.aff < 60) hint = S.holding ? 'Cùng đi dạo nắm tay 💕' : 'Đã có thể cầm tay rồi đấy!';
+  else hint = S.kissed ? 'Tiếp tục vun đắp đến 100 💗' : 'Thời điểm cho một nụ hôn má 😘';
+  ctx.font = '600 14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  const hw = ctx.measureText(hint).width + 24;
+  ctx.fillStyle = 'rgba(255,255,255,.8)'; rrect(W - hw - 14, 12, hw, 30, 15); ctx.fill();
+  ctx.fillStyle = '#5a3a3a'; ctx.textAlign = 'center'; ctx.fillText(hint, W - 14 - hw / 2, 28);
+
+  if(S.toast){
+    const a = Math.min(1, S.toast.t * 3);
+    ctx.globalAlpha = a; ctx.font = '700 16px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+    const tw = ctx.measureText(S.toast.text).width + 32;
+    ctx.fillStyle = 'rgba(59,43,43,.82)'; rrect(W / 2 - tw / 2, H - 52, tw, 36, 18); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(S.toast.text, W / 2, H - 33);
+  }
+  ctx.restore();
+}
+
+const BOY = {female: false, skin: '#f1c79e', top: '#3aa0d8', bottom: '#2f4858', hair: '#2b1d16', sandal: '#5a3d2b'};
+const GIRL = {female: true, skin: '#f7d2b2', top: '#ff8fab', bottom: '#ff5d8f', hair: '#3a2219', sandal: '#c2547a'};
+
+function draw(){
+  const k0 = scale * dpr;
+  ctx.setTransform(k0, 0, 0, k0, 0, 0);
+  const k = drawBackground();
+  drawPalm(78, 420, k);
+  drawUmbrella(830, 405, k);
+  S.items.forEach(drawShell);
+
+  const p = S.p, g = S.g;
+  const holdNow = S.holding;
+  const handY = Math.min(p.y, g.y) - 38 * depth((p.y + g.y) / 2);
+  const mx = (p.x + g.x) / 2;
+  const actors = [
+    {c: p, o: Object.assign({}, BOY, {hand: holdNow ? {x: (mx - p.x) / depth(p.y), y: (handY - p.y) / depth(p.y)} : null})},
+    {c: g, o: Object.assign({}, GIRL, {blush: g.blush, hand: holdNow ? {x: (mx - g.x) / depth(g.y), y: (handY - g.y) / depth(g.y)} : null})}
+  ].sort((a, b) => a.c.y - b.c.y);
+  actors.forEach(a => drawPerson(a.c, a.o));
+
+  // particles
+  S.parts.forEach(q => {
+    const a = clamp(q.life / q.max * 1.5, 0, 1);
+    ctx.globalAlpha = a;
+    if(q.kind === 'heart'){ ctx.fillStyle = q.color; heartPath(q.x, q.y, q.size); ctx.fill(); }
+    else if(q.kind === 'spark'){ ctx.fillStyle = q.color; ctx.beginPath(); ctx.arc(q.x, q.y, q.size, 0, 7); ctx.fill(); }
+    else if(q.kind === 'text'){
+      ctx.font = `800 ${q.big ? 24 : 16}px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif`; ctx.textAlign = 'center';
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.strokeText(q.text, q.x, q.y);
+      ctx.fillStyle = q.color; ctx.fillText(q.text, q.x, q.y);
+    }
+    ctx.globalAlpha = 1;
+  });
+
+  if(S.bubbles.p) drawBubble(p, S.bubbles.p, S.bubbles.g && Math.abs(p.x - g.x) < 260 ? 38 : 0);
+  if(S.bubbles.g) drawBubble(g, S.bubbles.g);
+
+  if(S.ended){ // khung hoàng hôn
+    const a = Math.min(.35, S.endT * .12);
+    const v = ctx.createRadialGradient(W / 2, H / 2, 200, W / 2, H / 2, 620);
+    v.addColorStop(0, 'rgba(255,120,150,0)'); v.addColorStop(1, `rgba(120,30,70,${a})`);
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+  drawHUD();
+}
+
+// ---------- buttons ----------
+const bHand = document.getElementById('bHand'), hHand = document.getElementById('hHand');
+const bKiss = document.getElementById('bKiss'), hKiss = document.getElementById('hKiss');
+function updateButtons(){
+  bHand.querySelector('span').textContent = S.holding ? 'Buông tay' : 'Cầm tay';
+  bHand.classList.toggle('on', S.holding);
+  bHand.classList.toggle('locked', S.aff < 30 && !S.holding);
+  hHand.textContent = S.aff < 30 && !S.holding ? '(cần 30)' : '';
+  bKiss.classList.toggle('locked', S.aff < 60);
+  hKiss.textContent = S.aff < 60 ? '(cần 60)' : '';
+}
+
+// ---------- overlay ----------
+const overlay = document.getElementById('overlay'), card = document.getElementById('card');
+let startTime = 0;
+function begin(){
+  overlay.classList.add('hidden'); started = true; startTime = performance.now();
+  beep(523, .1); beep(784, .14, 'sine', .07, .1);
+}
+document.getElementById('go').addEventListener('click', begin);
+function showEnd(){
+  const secs = Math.round((performance.now() - startTime) / 1000);
+  const mm = Math.floor(secs / 60), ss = String(secs % 60).padStart(2, '0');
+  card.innerHTML = `<h1>💞 Hai bạn đã thành đôi!</h1>
+    <p>Hoàng hôn buông xuống, Minh và Lan nắm tay nhau dạo bước trên bãi cát.</p>
+    <p>⏱️ Thời gian chinh phục: <b>${mm}:${ss}</b> · 😘 Số lần hôn má: <b>${S.kissed}</b></p>
+    <button class="go" id="again">Chơi lại</button>`;
+  overlay.classList.remove('hidden');
+  document.getElementById('again').addEventListener('click', () => { reset(); begin(); });
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if(started) update(dt); else { S.t += dt; clouds.forEach(c => { c.x += c.v * dt; if(c.x > W + 120) c.x = -140; }); }
+  draw();
+  requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
